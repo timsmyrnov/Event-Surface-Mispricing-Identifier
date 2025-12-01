@@ -1,8 +1,15 @@
 import sqlite3
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / 'data'
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+DB_PATH = DATA_DIR / 'positions.db'
 
 class Portfolio:
     def __init__(self):
-        self.positions_db = sqlite3.connect('positions.db')
+        self.positions_db = sqlite3.connect(DB_PATH)
         self.positions_db.row_factory = sqlite3.Row
         self.db_cursor = self.positions_db.cursor()
 

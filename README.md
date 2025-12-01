@@ -11,7 +11,16 @@ When an edge is large enough, it computes how many shares you could buy at Polym
 
 ---
 
-## High-Level Flow
+## Installation
+
+Clone the repo and install dependencies:
+
+```bash
+git clone https://github.com/your-username/Event-Surface-Mispricing-Identifier.git
+cd Event-Surface-Mispricing-Identifier
+pip install -r requirements.txt
+pip install -e .
+```
 
 1. **Load securities from Polymarket**
    - `polymarket.load_secs(...)` finds relevant events by keyword (e.g. “close”), filters by volume, and extracts:
@@ -55,6 +64,7 @@ When an edge is large enough, it computes how many shares you could buy at Polym
 ```text
 Event-Surface-Mispricing-Identifier/
 ├── .gitignore
+├── pyproject.toml
 ├── README.md
 ├── requirements.txt
 ├── src/

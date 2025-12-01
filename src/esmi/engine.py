@@ -1,7 +1,7 @@
-from secs import Securities
-from pricer import Pricer
-from better import Better
-import polymarket as pm
+from .secs import Securities
+from .pricer import Pricer
+from .better import Better
+from . import polymarket as pm
 
 def main():
     secs = Securities()

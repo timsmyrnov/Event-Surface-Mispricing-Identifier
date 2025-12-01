@@ -1,15 +1,15 @@
 import re
 import numpy as np
 import pandas as pd
-from secs import Securities
-from black_scholes import BlackScholes
-from heston import Heston
-import heston_inputs as hi
-import polymarket as pm
+from .secs import Securities
+from .black_scholes import BlackScholes
+from .heston import Heston
+from . import heston_inputs as hi
+from . import polymarket as pm
 
 class Pricer:
-    def __init__(self):
-        self.secs = Securities()
+    def __init__(self, secs: Securities | None=None):
+        self.secs = secs or Securities()
 
     def compute_black_scholes_prob(self, sec_id: int) -> float:
         bs_model = BlackScholes(

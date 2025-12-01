@@ -1,14 +1,14 @@
 import sqlite3
-from secs import Securities
-from portfolio import Portfolio
-import polymarket as pm
+from .secs import Securities
+from .portfolio import Portfolio
+from . import polymarket as pm
 
 class Better:
-    def __init__(self):
-        self.secs = Securities()
-        self.portfolio = Portfolio()
+    def __init__(self, secs: Securities | None=None, portfolio: Portfolio | None=None):
+        self.secs = secs or Securities()
+        self.portfolio = portfolio or Portfolio()
 
-    def try_bet(self, sec_id: int, min_edge: float=0.05) -> bool | str:
+    def try_bet(self, sec_id: int, min_edge: float=0.05) -> sqlite3.Row | str:
         edge = self._compute_edge(sec_id, min_edge)
 
         if edge is not None:
