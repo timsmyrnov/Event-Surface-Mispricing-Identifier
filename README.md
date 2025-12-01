@@ -16,7 +16,7 @@ When an edge is large enough, it computes how many shares you could buy at Polym
 Clone the repo and install dependencies:
 
 ```bash
-git clone https://github.com/your-username/Event-Surface-Mispricing-Identifier.git
+git clone https://github.com/timsmyrnov/Event-Surface-Mispricing-Identifier.git
 cd Event-Surface-Mispricing-Identifier
 pip install -r requirements.txt
 pip install -e .
