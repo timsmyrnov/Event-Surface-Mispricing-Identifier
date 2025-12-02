@@ -12,6 +12,9 @@ class Pricer:
     def __init__(self, secs: Securities | None=None):
         self.secs = secs or Securities()
 
+    def compute_market_data_prob(self, sec_id: int) -> float:
+        ...
+
     def compute_black_scholes_prob(self, sec_id: int) -> float:
         sec = self.secs.read_sec(sec_id)
         sec_ticker = sec['ticker']
@@ -33,15 +36,17 @@ class Pricer:
         sec_expiry = pm.get_event_expiry(sec_url).date().strftime('%Y-%m-%d')
 
         mkt_data = hi.get_heston_inputs(sec_ticker, sec_expiry)
-        strikes = mkt_data.strikes
-        dK = float(strikes[1] - strikes[0])
+
+        K_min = float(mkt_data.strikes.min())
+        K_max = float(mkt_data.strikes.max())
+
+        dK = 5.0
+        strikes_uni = np.arange(K_min, K_max + dK, dK)
 
         if mkt_data.atm_iv is not None:
             v0 = float(mkt_data.atm_iv) ** 2
         else:
             v0 = 0.04
-
-        price_range = self._parse_price_range(sec_label)
 
         h_model = Heston(
             S0=mkt_data.S0,
@@ -53,22 +58,32 @@ class Pricer:
             rho=-0.7,
             sigma=0.30,
             lambd=0.0,
-            K_min=float(strikes.min()),
-            K_max=float(strikes.max()),
-            dK=dK
+            strikes=strikes_uni,
+            dK=dK,
         )
-        self._breeden_litzenberger_pdf(h_model)
+
+        h_model.call_prices = np.array([h_model.heston_price_rec(K) for K in strikes_uni])
+
+        h_model.bl_pdf = self._breeden_litzenberger_pdf(
+            h_model.strikes,
+            h_model.call_prices,
+            h_model.dK,
+            h_model.r,
+            h_model.tau
+        )
+        price_range = self._parse_price_range(sec_label)
         norm_prob = self._heston_inter_prob(h_model, price_range[0], price_range[1], renormalize=True)
 
         return norm_prob
 
-    def _breeden_litzenberger_pdf(self, model: Heston) -> pd.DataFrame:
-        if model.call_prices is None or model.strikes is None:
-            self._compute_call_curve(model)
-
-        strikes = model.strikes
-        call_prices = model.call_prices
-        dK = model.dK
+    def _breeden_litzenberger_pdf(
+        self,
+        strikes: np.ndarray,
+        call_prices: np.ndarray,
+        dK: float,
+        r: float,
+        tau: float
+    ) -> np.ndarray:
 
         curvature = np.full_like(call_prices, np.nan)
 
@@ -79,32 +94,12 @@ class Pricer:
                 + call_prices[i - 1]
             ) / (dK**2)
 
-        bl_pdf = np.exp(model.r * model.tau) * curvature
+        bl_pdf = np.exp(r * tau) * curvature
         bl_pdf = np.maximum(bl_pdf, 0.0)
 
-        model.bl_pdf = bl_pdf
-
-        return pd.DataFrame(
-            {
-                'strike': strikes,
-                'call': call_prices,
-                'bl_pdf': bl_pdf,
-            }
-        )
-
-    def _compute_call_curve(self, model: Heston):
-        strikes = np.arange(model.K_min, model.K_max + model.dK, model.dK)
-        call_prices = np.array([model.heston_price_rec(K) for K in strikes])
-
-        model.strikes = strikes
-        model.call_prices = call_prices
-
-        return pd.DataFrame({'strike': strikes, 'call': call_prices})
+        return bl_pdf
     
     def _heston_inter_prob(self, model: Heston, S_low: float, S_high: float, renormalize: bool=False) -> float:
-        if model.bl_pdf is None or model.strikes is None:
-            self._breeden_litzenberger_pdf(model)
-
         strikes = model.strikes
         bl_pdf = model.bl_pdf
 

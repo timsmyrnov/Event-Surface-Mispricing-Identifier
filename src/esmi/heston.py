@@ -12,11 +12,11 @@ class Heston:
         rho,
         sigma,
         lambd,
-        K_min=60.0,
-        K_max=180.0,
-        dK=1.0,
+        strikes=None,
+        call_prices=None,
+        dK=None,
         umax=100.0,
-        N=650,
+        N=650
     ):
         self.S0 = S0
         self.tau = tau
@@ -29,14 +29,12 @@ class Heston:
         self.sigma = sigma
         self.lambd = lambd
 
-        self.K_min = K_min
-        self.K_max = K_max
         self.dK = dK
         self.umax = umax
         self.N = N
 
-        self.strikes = None
-        self.call_prices = None
+        self.strikes = strikes
+        self.call_prices = call_prices
         self.bl_pdf = None
 
     def heston_charfunc(self, phi):
