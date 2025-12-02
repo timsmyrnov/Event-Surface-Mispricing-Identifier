@@ -88,7 +88,12 @@ class Securities:
         rows = cur.fetchall()
         for row in rows:
             yield row
-    
+
+    def __len__(self) -> int:
+        self.db_cursor.execute('SELECT COUNT(*) FROM secs')
+        (count,) = self.db_cursor.fetchone()
+        return count
+
     def __str__(self) -> str:
         self.db_cursor.execute(
             'SELECT id, ticker, label, url, pred_mkt_prob, opt_mkt_prob FROM secs'

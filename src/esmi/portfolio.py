@@ -89,7 +89,12 @@ class Portfolio:
         rows = cur.fetchall()
         for row in rows:
             yield row
-    
+
+    def __len__(self) -> int:
+        self.db_cursor.execute('SELECT COUNT(*) FROM portfolio')
+        (count,) = self.db_cursor.fetchone()
+        return count
+
     def __str__(self) -> str:
         self.db_cursor.execute(
             'SELECT id, sec_id, ticker, label, side, vwap, qty FROM positions'

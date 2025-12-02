@@ -2,7 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import lognorm
 import yfinance as yf
-from datetime import datetime, timezone
+import datetime as dt
+from datetime import timezone
 
 class BlackScholes:
     def __init__(
@@ -38,10 +39,43 @@ class BlackScholes:
     def _fetch_market_data(self):
         t = yf.Ticker(self.ticker)
 
-        if self.expiry not in t.options:
-            raise ValueError(
-                f'Expiry {self.expiry} not found. Available expiries: {t.options}'
-            )
+        today = dt.datetime.now(timezone.utc).date()
+        try:
+            req_expiry_date = dt.datetime.strptime(self.expiry, '%Y-%m-%d').date()
+        except Exception as e:
+            raise ValueError(f'Invalid expiry {self.expiry!r}, expected YYYY-MM-DD') from e
+
+        available_expiries = list(getattr(t, 'options', []))
+        if not available_expiries:
+            raise ValueError(f'No listed options expiries for {self.ticker}')
+
+        available_dates = [
+            dt.datetime.strptime(e, '%Y-%m-%d').date() for e in available_expiries
+        ]
+
+        if self.expiry in available_expiries:
+            chosen_date = req_expiry_date
+        else:
+            future_candidates = [
+                d for d in available_dates
+                if d >= req_expiry_date and d > today
+            ]
+
+            if not future_candidates:
+                future_candidates = [d for d in available_dates if d > today]
+
+            if not future_candidates:
+                raise ValueError(f'No future expiries available for {self.ticker}')
+
+            chosen_date = min(future_candidates)
+
+        self.expiry_date = chosen_date
+        self.expiry_str = chosen_date.strftime('%Y-%m-%d')
+        self.expiry = self.expiry_str
+
+        days_to_expiry = (self.expiry_date - today).days
+        if days_to_expiry <= 0:
+            raise ValueError('Expiry is not in the future')
 
         hist = t.history(period='1d')
         if hist.empty:
@@ -49,21 +83,25 @@ class BlackScholes:
 
         self.price = float(hist['Close'].iloc[-1])
 
-        opt = t.option_chain(self.expiry)
+        opt = t.option_chain(self.expiry_str)
         calls = opt.calls
 
-        atm_idx = (calls['strike'] - self.price).abs().idxmin()
-        self.atm_strike = float(calls.loc[atm_idx, 'strike'])
-        self.iv_annual = float(
-            calls.loc[calls['strike'] == self.atm_strike, 'impliedVolatility'].iloc[0]
-        )
+        if calls.empty:
+            raise RuntimeError(f'No call options for {self.ticker} on {self.expiry_str}')
+
+        valid = calls.dropna(subset=['impliedVolatility'])
+        if valid.empty:
+            raise RuntimeError(f'No valid IV data for {self.ticker} on {self.expiry_str}')
+
+        atm_idx = (valid['strike'] - self.price).abs().idxmin()
+        row = valid.loc[atm_idx]
+
+        self.atm_strike = float(row['strike'])
+        self.iv_annual = float(row['impliedVolatility'])
 
     def _compute_params(self):
-        now_utc = datetime.now(timezone.utc)
-        expiry_dt = datetime.strptime(self.expiry, '%Y-%m-%d').replace(
-            tzinfo=timezone.utc
-        )
-        T = (expiry_dt - now_utc).days / 365
+        today = dt.datetime.now(timezone.utc).date()
+        T = (self.expiry_date - today).days / 365.0
 
         if T <= 0:
             raise ValueError('Expiry must be in the future to build a terminal PDF.')
@@ -85,42 +123,16 @@ class BlackScholes:
         )
         self.pdf = lognorm.pdf(self.xs, s=self.sigma, scale=np.exp(self.mu))
 
-    def prob_between(self, K_low, K_high, renormalize: bool = False) -> float:
-        if K_high < K_low:
-            K_low, K_high = K_high, K_low
-
-        dist = lognorm(s=self.sigma, scale=np.exp(self.mu))
-
-        p_raw = dist.cdf(K_high) - dist.cdf(K_low)
-
-        if not renormalize:
-            return float(p_raw)
-
-        grid_low = lognorm.ppf(self.q_low, s=self.sigma, scale=np.exp(self.mu))
-        grid_high = lognorm.ppf(self.q_high, s=self.sigma, scale=np.exp(self.mu))
-
-        p_window = dist.cdf(grid_high) - dist.cdf(grid_low)
-        if p_window <= 0:
-            return float('nan')
-
-        lo_clip = max(K_low, grid_low)
-        hi_clip = min(K_high, grid_high)
-        if hi_clip <= lo_clip:
-            return 0.0
-
-        p_raw_window = dist.cdf(hi_clip) - dist.cdf(lo_clip)
-        return float(p_raw_window / p_window)
-
     def plot_pdf(
         self,
-        ax: plt.Axes | None = None,
-        label: str = 'current vol',
-        color: str = 'blue',
-        show: bool = True,
+        ax: plt.Axes | None=None,
+        label: str='current vol',
+        color: str='blue',
+        show: bool=True,
     ) -> plt.Axes:
 
         if ax is None:
-            fig, ax = plt.subplots()
+            _, ax = plt.subplots()
 
         ax.plot(self.xs, self.pdf, color=color, linewidth=2, label=label)
         ax.axvline(self.mean, color='gray', linestyle='--', linewidth=1.5, label='mean')

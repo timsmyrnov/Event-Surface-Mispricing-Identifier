@@ -1,20 +1,29 @@
 import re
 import numpy as np
 import pandas as pd
-from .secs import Securities
-from .black_scholes import BlackScholes
-from .heston import Heston
-from . import heston_inputs as hi
-from . import polymarket as pm
+from scipy.stats import lognorm
+from esmi.secs import Securities
+from esmi.black_scholes import BlackScholes
+from esmi.heston import Heston
+from esmi import heston_inputs as hi
+from esmi import polymarket as pm
 
 class Pricer:
     def __init__(self, secs: Securities | None=None):
         self.secs = secs or Securities()
 
     def compute_black_scholes_prob(self, sec_id: int) -> float:
-        bs_model = BlackScholes(
-            ...
-        )
+        sec = self.secs.read_sec(sec_id)
+        sec_ticker = sec['ticker']
+        sec_label = sec['label']
+        sec_url = sec['url']
+        sec_expiry = pm.get_event_expiry(sec_url).date().strftime('%Y-%m-%d')
+
+        bs_model = BlackScholes(sec_ticker, sec_expiry)
+
+        price_range = self._parse_price_range(sec_label)
+
+        return self._black_scholes_inter_prob(bs_model, price_range[0], price_range[1], renormalize=True)
 
     def compute_heston_prob(self, sec_id: int) -> float:
         sec = self.secs.read_sec(sec_id)
@@ -49,7 +58,7 @@ class Pricer:
             dK=dK
         )
         self._breeden_litzenberger_pdf(h_model)
-        norm_prob = self.prob_between(h_model, price_range[0], price_range[1], renormalize=True)
+        norm_prob = self._heston_inter_prob(h_model, price_range[0], price_range[1], renormalize=True)
 
         return norm_prob
 
@@ -92,7 +101,7 @@ class Pricer:
 
         return pd.DataFrame({'strike': strikes, 'call': call_prices})
     
-    def prob_between(self, model: Heston, S_low, S_high, renormalize=False):
+    def _heston_inter_prob(self, model: Heston, S_low: float, S_high: float, renormalize: bool=False) -> float:
         if model.bl_pdf is None or model.strikes is None:
             self._breeden_litzenberger_pdf(model)
 
@@ -114,6 +123,32 @@ class Pricer:
         if denom <= 0:
             return num
         return num / denom
+    
+    def _black_scholes_inter_prob(self, model: BlackScholes, S_low: float, S_high: float, renormalize: bool=False) -> float:
+        if S_high < S_low:
+            S_low, S_high = S_high, S_low
+
+        dist = lognorm(s=model.sigma, scale=np.exp(model.mu))
+
+        p_raw = dist.cdf(S_high) - dist.cdf(S_low)
+
+        if not renormalize:
+            return float(p_raw)
+
+        grid_low = lognorm.ppf(model.q_low, s=model.sigma, scale=np.exp(model.mu))
+        grid_high = lognorm.ppf(model.q_high, s=model.sigma, scale=np.exp(model.mu))
+
+        p_window = dist.cdf(grid_high) - dist.cdf(grid_low)
+        if p_window <= 0:
+            return float('nan')
+
+        lo_clip = max(S_low, grid_low)
+        hi_clip = min(S_high, grid_high)
+        if hi_clip <= lo_clip:
+            return 0.0
+
+        p_raw_window = dist.cdf(hi_clip) - dist.cdf(lo_clip)
+        return float(p_raw_window / p_window)
 
     def _parse_price_range(self, label: str, def_max: int=100_000_000, def_min: int=0) -> tuple:
         s = label.replace('$', '').replace(',', '').strip()
@@ -135,3 +170,27 @@ class Pricer:
             return lo, def_max
 
         raise ValueError(f'Unrecognized price range label: {label!r}')
+
+if __name__ == '__main__':
+    p = Pricer()
+    s = Securities()
+
+    l = len(s)
+
+    total_error = 0
+    max_error = 0
+    max_error_id = None
+
+    for i in range(1, l):
+        bs = p.compute_black_scholes_prob(i)
+        h = p.compute_heston_prob(i)
+        print(bs, h, '\n')
+
+        curr_error = abs(bs - h)
+        if curr_error > max_error:
+            max_error = curr_error
+            max_error_id = i
+
+        total_error += curr_error
+
+    print(f'Average error: {total_error / l}, Max error: {max_error}, Max error id: {max_error_id}, Tests: {l}')
