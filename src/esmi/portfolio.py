@@ -20,8 +20,9 @@ class Portfolio:
             ticker TEXT,
             label TEXT,
             side TEXT,
+            vwap REAL,
             qty REAL,
-            vwap REAL
+            entry_edge REAL
             )
         ''')
         self.positions_db.commit()
@@ -30,25 +31,25 @@ class Portfolio:
         sec_id = sec['id']
         sec_ticker = sec['ticker']
         sec_label = sec['label']
-        side = edge[1]
+        entry_edge, side = edge
 
         self.db_cursor.execute('''
             INSERT INTO positions
-            (sec_id, ticker, label, side, vwap, qty)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (sec_id, ticker, label, side, vwap, qty, entry_edge)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ''',
-            (sec_id, sec_ticker, sec_label, side, price, qty),
+            (sec_id, sec_ticker, sec_label, side, price, qty, entry_edge),
         )
         self.positions_db.commit()
 
         return self.read_pos(self.db_cursor.lastrowid)
-    
+
     def read_pos(self, id: int) -> sqlite3.Row | str:
         self.db_cursor.execute('SELECT * FROM positions WHERE id = ?', (id,))
         row = self.db_cursor.fetchone()
 
         return row if row else 'No data found for ID'
-    
+
     def update_pos(
         self,
         id: int,
@@ -57,7 +58,8 @@ class Portfolio:
         label: str=None,
         side: str=None,
         vwap: float=None,
-        qty: float=None
+        qty: float=None,
+        entry_edge: float=None
     ) -> sqlite3.Row | str:
         self.db_cursor.execute('''
             UPDATE positions
@@ -67,10 +69,11 @@ class Portfolio:
             label = COALESCE(?, label),
             side = COALESCE(?, side),
             vwap = COALESCE(?, vwap),
-            qty = COALESCE(?, qty)
+            qty = COALESCE(?, qty),
+            entry_edge = COALESCE(?, entry_edge)
             WHERE id = ?
             ''',
-            (sec_id, ticker, label, side, vwap, qty, id),
+            (sec_id, ticker, label, side, vwap, qty, entry_edge, id),
         )
         self.positions_db.commit()
         return self.read_pos(id)
@@ -84,7 +87,7 @@ class Portfolio:
     def __iter__(self):
         cur = self.positions_db.cursor()
         cur.execute(
-            'SELECT id, sec_id, ticker, label, side, vwap, qty FROM positions'
+            'SELECT id, sec_id, ticker, label, side, vwap, qty, entry_edge FROM positions'
         )
         rows = cur.fetchall()
         for row in rows:
@@ -97,18 +100,18 @@ class Portfolio:
 
     def __str__(self) -> str:
         self.db_cursor.execute(
-            'SELECT id, sec_id, ticker, label, side, vwap, qty FROM positions'
+            'SELECT id, sec_id, ticker, label, side, vwap, qty, entry_edge FROM positions'
         )
         rows = self.db_cursor.fetchall()
         if not rows:
             return 'Portfolio: no positions stored'
 
         lines = ['Portfolio:']
-        for pos_id, sec_id, ticker, label, side, vwap, qty in rows:
+        for pos_id, sec_id, ticker, label, side, vwap, qty, entry_edge in rows:
             vwap_str = vwap if vwap is not None else 'N/A'
             qty_str = qty if qty is not None else 'N/A'
             lines.append(
-                f'[{pos_id}] {ticker} {side} qty={qty_str} @ {vwap_str} '
+                f'[{pos_id}] {ticker} {side} qty={qty_str} @ {vwap_str}, entry edge={entry_edge}'
                 f'(sec_id={sec_id}) \'{label}\''
             )
 

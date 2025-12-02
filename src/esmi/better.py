@@ -1,7 +1,7 @@
 import sqlite3
-from .secs import Securities
-from .portfolio import Portfolio
-from . import polymarket as pm
+from esmi.secs import Securities
+from esmi.portfolio import Portfolio
+from esmi import polymarket as pm
 
 class Better:
     def __init__(self, secs: Securities | None=None, portfolio: Portfolio | None=None):
