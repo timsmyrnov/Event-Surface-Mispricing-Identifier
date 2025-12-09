@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import lognorm
 import yfinance as yf
-import datetime as dt
-from datetime import timezone
+from datetime import datetime as dt, timezone
+import esmi.market_data as md
 
 class BlackScholes:
     def __init__(
@@ -22,7 +22,7 @@ class BlackScholes:
 
         self.price = None
         self.atm_strike = None
-        self.iv_annual = None
+        self.ann_iv = None
         self.T = None
         self.iv = None
         self.mu = None
@@ -37,82 +37,25 @@ class BlackScholes:
         self._build_grid()
 
     def _fetch_market_data(self):
-        t = yf.Ticker(self.ticker)
-
-        today = dt.datetime.now(timezone.utc).date()
-        try:
-            req_expiry_date = dt.datetime.strptime(self.expiry, '%Y-%m-%d').date()
-        except Exception as e:
-            raise ValueError(f'Invalid expiry {self.expiry!r}, expected YYYY-MM-DD') from e
-
-        available_expiries = list(getattr(t, 'options', []))
-        if not available_expiries:
-            raise ValueError(f'No listed options expiries for {self.ticker}')
-
-        available_dates = [
-            dt.datetime.strptime(e, '%Y-%m-%d').date() for e in available_expiries
-        ]
-
-        if self.expiry in available_expiries:
-            chosen_date = req_expiry_date
-        else:
-            future_candidates = [
-                d for d in available_dates
-                if d >= req_expiry_date and d > today
-            ]
-
-            if not future_candidates:
-                future_candidates = [d for d in available_dates if d > today]
-
-            if not future_candidates:
-                raise ValueError(f'No future expiries available for {self.ticker}')
-
-            chosen_date = min(future_candidates)
-
-        self.expiry_date = chosen_date
-        self.expiry_str = chosen_date.strftime('%Y-%m-%d')
-        self.expiry = self.expiry_str
-
-        days_to_expiry = (self.expiry_date - today).days
-        if days_to_expiry <= 0:
-            raise ValueError('Expiry is not in the future')
-
-        hist = t.history(period='1d')
-        if hist.empty:
-            raise RuntimeError('No price history returned from yfinance.')
-
-        self.price = float(hist['Close'].iloc[-1])
-
-        opt = t.option_chain(self.expiry_str)
-        calls = opt.calls
-
-        if calls.empty:
-            raise RuntimeError(f'No call options for {self.ticker} on {self.expiry_str}')
-
-        valid = calls.dropna(subset=['impliedVolatility'])
-        if valid.empty:
-            raise RuntimeError(f'No valid IV data for {self.ticker} on {self.expiry_str}')
-
-        atm_idx = (valid['strike'] - self.price).abs().idxmin()
-        row = valid.loc[atm_idx]
-
-        self.atm_strike = float(row['strike'])
-        self.iv_annual = float(row['impliedVolatility'])
+        self.expiry = md.get_closest_expiry()
+        self.atm_strike, self.ann_iv = md.get_atm_data(self.ticker, self.expiry)
+        self.price = md.get_latest_close_price(self.ticker)
 
     def _compute_params(self):
         today = dt.datetime.now(timezone.utc).date()
-        T = (self.expiry_date - today).days / 365.0
+        expiry_date = dt.datetime.strptime(self.expiry, '%Y-%m-%d').date()
+        T = (expiry_date - today).days / 365.0
 
         if T <= 0:
             raise ValueError('Expiry must be in the future to build a terminal PDF.')
 
         self.T = T
-        self.iv = self.iv_annual * np.sqrt(T)
+        self.iv = self.ann_iv * np.sqrt(T)
 
-        self.mu = np.log(self.price) - 0.5 * self.iv**2
+        self.mu = np.log(self.price) - 0.5 * self.iv ** 2
         self.sigma = self.iv
 
-        self.mean = float(np.exp(self.mu + 0.5 * self.sigma**2))
+        self.mean = float(np.exp(self.mu + 0.5 * self.sigma ** 2))
         self.dte = int(round(self.T * 365))
 
     def _build_grid(self):

@@ -17,43 +17,14 @@ class HestonInputs:
     atm_iv: float
 
 def get_heston_inputs(ticker: str, expiry: str, risk_free_rate: float=None) -> HestonInputs:
-    tk = yf.Ticker(ticker)
-    hist = tk.history(period='1d')
-    if hist.empty:
-        raise ValueError(f'No price history for {ticker}')
-
-    S0 = float(hist['Close'].iloc[-1])
+    S0 = md.get_latest_close_price(ticker, expiry)
 
     today = dt.datetime.now(dt.timezone.utc).date()
-    req_exp_dt = dt.datetime.strptime(expiry, '%Y-%m-%d').date()
+    expiry = md.get_closest_expiry(ticker, expiry)
+    expiry_date = dt.datetime.strptime(expiry, '%Y-%m-%d').date()
+    ticker = yf.Ticker(ticker)
 
-    available_expiries = list(getattr(tk, 'options', []))
-    if not available_expiries:
-        raise ValueError(f'No listed options expiries for {ticker}')
-
-    available_dates = [
-        dt.datetime.strptime(e, '%Y-%m-%d').date() for e in available_expiries
-    ]
-
-    if expiry in available_expiries:
-        chosen_expiry_date = req_exp_dt
-        chosen_expiry_str = expiry
-    else:
-        future_candidates = [
-            d for d in available_dates
-            if d >= req_exp_dt and d > today
-        ]
-
-        if not future_candidates:
-            future_candidates = [d for d in available_dates if d > today]
-
-        if not future_candidates:
-            raise ValueError(f'No future expiries available for {ticker}')
-
-        chosen_expiry_date = min(future_candidates)
-        chosen_expiry_str = chosen_expiry_date.strftime('%Y-%m-%d')
-
-    days_to_expiry = (chosen_expiry_date - today).days
+    days_to_expiry = (expiry_date - today).days
     if days_to_expiry <= 0:
         raise ValueError('Expiry is not in the future')
 
@@ -64,7 +35,7 @@ def get_heston_inputs(ticker: str, expiry: str, risk_free_rate: float=None) -> H
     else:
         r = md.get_latest_risk_free_rate()
 
-    opt_chain = tk.option_chain(chosen_expiry_str)
+    opt_chain = ticker.option_chain(expiry)
     calls = opt_chain.calls.copy()
     puts = opt_chain.puts.copy()
 
@@ -87,7 +58,7 @@ def get_heston_inputs(ticker: str, expiry: str, risk_free_rate: float=None) -> H
 
     return HestonInputs(
         ticker=ticker,
-        expiry=chosen_expiry_str,
+        expiry=expiry,
         S0=S0,
         tau=tau,
         r=r,

@@ -78,6 +78,12 @@ Event-Surface-Mispricing-Identifier/
 │       ├── black_scholes.py   # lognormal terminal distribution from ATM vol
 │       ├── secs.py            # SQLite-backed Securities store (secs.db)
 │       └── portfolio.py       # SQLite-backed Portfolio store (positions.db)
+|   └── tests/
+│       ├── test_better.py
+│       ├── test_polymarket.py
+│       ├── test_portfolio.py
+│       ├── test_pricer.py
+│       ├── test_secs.py
 └── data/
     ├── secs.db
     └── positions.db

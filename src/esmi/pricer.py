@@ -1,14 +1,14 @@
 import re
 import numpy as np
 import pandas as pd
-import datetime as dt
-from datetime import timezone
+from datetime import datetime as dt, timezone
 from scipy.stats import lognorm
 from esmi.secs import Securities
 from esmi.black_scholes import BlackScholes
 from esmi.heston import Heston
-from esmi import heston_inputs as hi
-from esmi import polymarket as pm
+import esmi.heston_inputs as hi
+import esmi.polymarket as pm
+import esmi.market_data as md
 
 class Pricer:
     def __init__(self, secs: Securities | None=None):
@@ -21,11 +21,12 @@ class Pricer:
         sec_url = sec['url']
         sec_expiry = pm.get_event_expiry(sec_url).date().strftime('%Y-%m-%d')
 
+        expiry = md.get_closest_expiry(sec_ticker, sec_expiry)
         strikes = ...
         call_prices = ...
         dK = ...
-        r = ...
-        tau = sec_expiry - dt.datetime.now(timezone.utc).date()
+        r = md.get_latest_risk_free_rate()
+        tau = expiry - dt.datetime.now(timezone.utc).date()
 
         bl_pdf = self._breeden_litzenberger_pdf(
             strikes,

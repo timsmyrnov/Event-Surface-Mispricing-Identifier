@@ -1,7 +1,7 @@
 from esmi.secs import Securities
 from esmi.pricer import Pricer
 from esmi.better import Better
-from esmi import polymarket as pm
+import esmi.polymarket as pm
 
 def main():
     secs = Securities()
