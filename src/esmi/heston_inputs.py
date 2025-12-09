@@ -2,6 +2,7 @@ import datetime as dt
 from dataclasses import dataclass
 import numpy as np
 import yfinance as yf
+import esmi.market_data as md
 
 @dataclass
 class HestonInputs:
@@ -14,15 +15,6 @@ class HestonInputs:
     call_mid: np.ndarray
     put_mid: np.ndarray
     atm_iv: float
-
-def _get_risk_free_rate() -> float:
-    irx = yf.Ticker('^IRX')
-    hist = irx.history(period='5d')
-    if hist.empty:
-        return 0.05
-
-    last = hist['Close'].iloc[-1]
-    return float(last) / 100.0
 
 def get_heston_inputs(ticker: str, expiry: str, risk_free_rate: float=None) -> HestonInputs:
     tk = yf.Ticker(ticker)
@@ -70,7 +62,7 @@ def get_heston_inputs(ticker: str, expiry: str, risk_free_rate: float=None) -> H
     if risk_free_rate is not None:
         r = float(risk_free_rate)
     else:
-        r = _get_risk_free_rate()
+        r = md.get_latest_risk_free_rate()
 
     opt_chain = tk.option_chain(chosen_expiry_str)
     calls = opt_chain.calls.copy()

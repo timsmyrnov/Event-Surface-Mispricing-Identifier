@@ -1,6 +1,8 @@
 import re
 import numpy as np
 import pandas as pd
+import datetime as dt
+from datetime import timezone
 from scipy.stats import lognorm
 from esmi.secs import Securities
 from esmi.black_scholes import BlackScholes
@@ -13,7 +15,29 @@ class Pricer:
         self.secs = secs or Securities()
 
     def compute_market_data_prob(self, sec_id: int) -> float:
-        ...
+        sec = self.secs.read_sec(sec_id)
+        sec_ticker = sec['ticker']
+        sec_label = sec['label']
+        sec_url = sec['url']
+        sec_expiry = pm.get_event_expiry(sec_url).date().strftime('%Y-%m-%d')
+
+        strikes = ...
+        call_prices = ...
+        dK = ...
+        r = ...
+        tau = sec_expiry - dt.datetime.now(timezone.utc).date()
+
+        bl_pdf = self._breeden_litzenberger_pdf(
+            strikes,
+            call_prices,
+            dK,
+            r,
+            tau
+        )
+        price_range = self._parse_price_range(sec_label)
+        norm_prob = self._inter_prob(h_model, price_range[0], price_range[1], renormalize=True)
+
+        return norm_prob
 
     def compute_black_scholes_prob(self, sec_id: int) -> float:
         sec = self.secs.read_sec(sec_id)
@@ -99,7 +123,7 @@ class Pricer:
 
         return bl_pdf
     
-    def _heston_inter_prob(self, model: Heston, S_low: float, S_high: float, renormalize: bool=False) -> float:
+    def _bl_inter_prob(self, model: Heston, S_low: float, S_high: float, renormalize: bool=False) -> float:
         strikes = model.strikes
         bl_pdf = model.bl_pdf
 
