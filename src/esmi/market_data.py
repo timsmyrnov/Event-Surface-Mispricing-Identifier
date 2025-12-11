@@ -12,7 +12,7 @@ def get_latest_close_price(ticker: str) -> float:
     return price
 
 
-def get_call_prices(ticker: str, expiry: str, strikes: np.ndarray) -> float:
+def get_call_prices(ticker: str, expiry: str, strikes: np.ndarray) -> np.ndarray:
     ticker = yf.Ticker(ticker)
     opt_chain = ticker.option_chain(expiry)
     all_calls = opt_chain.calls.copy()
@@ -25,7 +25,7 @@ def get_call_prices(ticker: str, expiry: str, strikes: np.ndarray) -> float:
     for strike in strikes:
         call_prices.append(all_calls.loc[all_calls['strike'] == strike])
 
-    return call_prices
+    return np.array(call_prices)
 
 
 def get_strikes(ticker: str, expiry: str, side: str='BUY') -> np.ndarray:
