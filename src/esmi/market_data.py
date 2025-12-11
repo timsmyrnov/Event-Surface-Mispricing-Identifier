@@ -1,3 +1,4 @@
+import numpy as np
 import yfinance as yf
 from datetime import datetime as dt, timezone
 
@@ -9,6 +10,38 @@ def get_latest_close_price(ticker: str) -> float:
 
     price = float(hist['Close'].iloc[-1])
     return price
+
+
+def get_call_prices(ticker: str, expiry: str, strikes: np.ndarray) -> float:
+    ticker = yf.Ticker(ticker)
+    opt_chain = ticker.option_chain(expiry)
+    all_calls = opt_chain.calls.copy()
+
+    all_expiries = list(getattr(ticker, 'options', []))
+    if expiry not in all_expiries:
+        raise ValueError(f'Expiry {expiry} not found in the options chain')
+    
+    call_prices = []
+    for strike in strikes:
+        call_prices.append(all_calls.loc[all_calls['strike'] == strike])
+
+    return call_prices
+
+
+def get_strikes(ticker: str, expiry: str, side: str='BUY') -> np.ndarray:
+    ticker = yf.Ticker(ticker)
+    opt_chain = ticker.option_chain(expiry)
+
+    if side.upper() == 'BUY':
+        calls = opt_chain.calls.copy()
+        strikes = calls['strike'].values.astype(float)
+    elif side.upper() == 'SELL':
+        puts = opt_chain.puts.copy()
+        strikes = puts['strike'].values.astype(float)
+    else:
+        raise ValueError(f'Side can only be BUY/SELL')
+    
+    return strikes
 
 
 def get_latest_risk_free_rate() -> float:
@@ -23,10 +56,10 @@ def get_latest_risk_free_rate() -> float:
 
 def get_closest_expiry(ticker: str, expiry: str) -> str:
     ticker = yf.Ticker(ticker)
-    today = dt.datetime.now(timezone.utc).date()
+    today = dt.now(timezone.utc).date()
 
     try:
-        req_expiry = dt.datetime.strptime(expiry, '%Y-%m-%d').date()
+        req_expiry = dt.strptime(expiry, '%Y-%m-%d').date()
     except Exception as e:
         raise ValueError(f'Invalid expiry {expiry!r}, expected YYYY-MM-DD') from e
 
@@ -35,7 +68,7 @@ def get_closest_expiry(ticker: str, expiry: str) -> str:
         raise ValueError(f'No listed options expiries for {ticker}')
 
     all_dates = [
-        dt.datetime.strptime(e, '%Y-%m-%d').date() for e in all_expiries
+        dt.strptime(e, '%Y-%m-%d').date() for e in all_expiries
     ]
 
     if expiry in all_expiries:

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime as dt, timezone
 import requests
 import json
 from urllib.parse import urlparse
@@ -18,7 +18,7 @@ TICKERS = {
 }
 
 def get_markets(limit: int = 100, offset: int = 0):
-    today_utc = datetime.now(timezone.utc).date()
+    today_utc = dt.now(timezone.utc).date()
     end_date_min = today_utc.strftime('%Y-%m-%dT00:00:00Z')
     end_date_max = '2025-12-31T00:00:00Z'
 
@@ -139,7 +139,7 @@ def get_event_expiry(url: str):
         return None
 
     end_str = end_str.replace('Z', '+00:00')
-    return datetime.fromisoformat(end_str)
+    return dt.fromisoformat(end_str)
 
 
 def _extract_slug(url: str) -> str | None:

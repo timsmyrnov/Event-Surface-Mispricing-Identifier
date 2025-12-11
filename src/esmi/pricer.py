@@ -22,19 +22,11 @@ class Pricer:
         sec_expiry = pm.get_event_expiry(sec_url).date().strftime('%Y-%m-%d')
 
         expiry = md.get_closest_expiry(sec_ticker, sec_expiry)
-        strikes = ...
-        call_prices = ...
-        dK = ...
+        strikes = md.get_strikes(sec_ticker, expiry)
+        call_prices = md.get_call_prices(sec_ticker, expiry, strikes)
         r = md.get_latest_risk_free_rate()
-        tau = expiry - dt.datetime.now(timezone.utc).date()
+        tau = expiry - dt.now(timezone.utc).date()
 
-        bl_pdf = self._breeden_litzenberger_pdf(
-            strikes,
-            call_prices,
-            dK,
-            r,
-            tau
-        )
         price_range = self._parse_price_range(sec_label)
         norm_prob = self._inter_prob(h_model, price_range[0], price_range[1], renormalize=True)
 
@@ -97,7 +89,7 @@ class Pricer:
             h_model.tau
         )
         price_range = self._parse_price_range(sec_label)
-        norm_prob = self._heston_inter_prob(h_model, price_range[0], price_range[1], renormalize=True)
+        norm_prob = self._breeden_litzenberger_inter_prob(h_model, price_range[0], price_range[1], renormalize=True)
 
         return norm_prob
 
@@ -105,7 +97,7 @@ class Pricer:
         self,
         strikes: np.ndarray,
         call_prices: np.ndarray,
-        dK: float,
+        dK: float | None,
         r: float,
         tau: float
     ) -> np.ndarray:
@@ -124,7 +116,10 @@ class Pricer:
 
         return bl_pdf
     
-    def _bl_inter_prob(self, model: Heston, S_low: float, S_high: float, renormalize: bool=False) -> float:
+    def _inter_prob(self, S_low: float, S_high: float, renormalize: bool=False) -> float:
+        ...
+    
+    def _breeden_litzenberger_inter_prob(self, model: Heston, S_low: float, S_high: float, renormalize: bool=False) -> float:
         strikes = model.strikes
         bl_pdf = model.bl_pdf
 

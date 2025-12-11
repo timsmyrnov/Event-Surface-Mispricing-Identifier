@@ -42,8 +42,8 @@ class BlackScholes:
         self.price = md.get_latest_close_price(self.ticker)
 
     def _compute_params(self):
-        today = dt.datetime.now(timezone.utc).date()
-        expiry_date = dt.datetime.strptime(self.expiry, '%Y-%m-%d').date()
+        today = dt.now(timezone.utc).date()
+        expiry_date = dt.strptime(self.expiry, '%Y-%m-%d').date()
         T = (expiry_date - today).days / 365.0
 
         if T <= 0:
