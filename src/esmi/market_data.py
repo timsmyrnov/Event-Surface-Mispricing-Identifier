@@ -21,9 +21,13 @@ def get_call_prices(ticker: str, expiry: str, strikes: np.ndarray) -> np.ndarray
     if expiry not in all_expiries:
         raise ValueError(f'Expiry {expiry} not found in the options chain')
     
-    call_prices = []
-    for strike in strikes:
-        call_prices.append(all_calls.loc[all_calls['strike'] == strike])
+    all_calls = opt_chain.calls.copy()
+
+    call_prices = (
+        all_calls.set_index("strike")
+            .reindex(strikes)["lastPrice"]
+            .tolist()
+    )
 
     return np.array(call_prices)
 

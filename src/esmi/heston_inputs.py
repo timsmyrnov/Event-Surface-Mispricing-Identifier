@@ -20,7 +20,6 @@ def get_heston_inputs(ticker: str, expiry: str, risk_free_rate: float=None) -> H
     today = dt.now(timezone.utc).date()
     expiry = md.get_closest_expiry(ticker, expiry)
     expiry_date = dt.strptime(expiry, '%Y-%m-%d').date()
-    ticker = yf.Ticker(ticker)
 
     days_to_expiry = (expiry_date - today).days
     if days_to_expiry <= 0:
@@ -35,6 +34,8 @@ def get_heston_inputs(ticker: str, expiry: str, risk_free_rate: float=None) -> H
 
     strikes = md.get_strikes(ticker, expiry, 'BUY')
     _, atm_iv = md.get_atm_data(ticker, expiry)
+
+    ticker = yf.Ticker(ticker)
 
     return HestonInputs(
         ticker=ticker,

@@ -25,10 +25,10 @@ class Pricer:
         strikes = md.get_strikes(sec_ticker, expiry)
         call_prices = md.get_call_prices(sec_ticker, expiry, strikes)
         r = md.get_latest_risk_free_rate()
-        tau = expiry - dt.now(timezone.utc).date()
+        tau = dt.strptime(expiry, '%Y-%m-%d').date() - dt.now(timezone.utc).date()
 
         price_range = self._parse_price_range(sec_label)
-        norm_prob = self._inter_prob(h_model, price_range[0], price_range[1], renormalize=True)
+        norm_prob = self._inter_prob(strikes=strikes, call_prices=call_prices, renormalize=True)
 
         return norm_prob
 
@@ -43,7 +43,7 @@ class Pricer:
 
         price_range = self._parse_price_range(sec_label)
 
-        return self._black_scholes_inter_prob(bs_model, price_range[0], price_range[1], renormalize=True)
+        return self._black_scholes_inter_prob(model=bs_model, S_low=price_range[0], S_high=price_range[1], renormalize=True)
 
     def compute_heston_prob(self, sec_id: int) -> float:
         sec = self.secs.read_sec(sec_id)
@@ -89,7 +89,7 @@ class Pricer:
             h_model.tau
         )
         price_range = self._parse_price_range(sec_label)
-        norm_prob = self._breeden_litzenberger_inter_prob(h_model, price_range[0], price_range[1], renormalize=True)
+        norm_prob = self._breeden_litzenberger_inter_prob(model=h_model, S_low=price_range[0], S_high=price_range[1], renormalize=True)
 
         return norm_prob
 
@@ -115,8 +115,8 @@ class Pricer:
         bl_pdf = np.maximum(bl_pdf, 0.0)
 
         return bl_pdf
-    
-    def _inter_prob(self, S_low: float, S_high: float, renormalize: bool=False) -> float:
+
+    def _inter_prob(self, strikes: np.ndarray, call_prices: np.ndarray, renormalize: bool=False) -> float:
         ...
     
     def _breeden_litzenberger_inter_prob(self, model: Heston, S_low: float, S_high: float, renormalize: bool=False) -> float:
@@ -185,27 +185,3 @@ class Pricer:
             return lo, def_max
 
         raise ValueError(f'Unrecognized price range label: {label!r}')
-
-if __name__ == '__main__':
-    p = Pricer()
-    s = Securities()
-
-    l = len(s)
-
-    total_error = 0
-    max_error = 0
-    max_error_id = None
-
-    for i in range(1, l):
-        bs = p.compute_black_scholes_prob(i)
-        h = p.compute_heston_prob(i)
-        print(bs, h, '\n')
-
-        curr_error = abs(bs - h)
-        if curr_error > max_error:
-            max_error = curr_error
-            max_error_id = i
-
-        total_error += curr_error
-
-    print(f'Average error: {total_error / l}, Max error: {max_error}, Max error id: {max_error_id}, Tests: {l}')
